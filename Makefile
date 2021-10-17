@@ -3,6 +3,7 @@ VERSION := $(file <version)
 REL := $(file <rel)
 
 FEDORA_SOURCES := https://src.fedoraproject.org/rpms/lorax/raw/f$(subst fc,,$(DIST))/f/sources
+FEDORA_REL ?= $(REL)
 SRC_FILE := lorax-$(VERSION).tar.gz
 
 BUILDER_DIR ?= ../..
@@ -39,3 +40,8 @@ clean-sources:
 .PHONY: update-sources
 update-sources:
 	@$(BUILDER_DIR)/$(SRC_DIR)/builder-rpm/scripts/generate-hashes-from-sources $(FEDORA_SOURCES)
+
+
+.PHONY: get-sources-from-srpm
+get-sources-from-srpm:
+	@$(BUILDER_DIR)/$(SRC_DIR)/builder-rpm/scripts/get_sources_from_srpm $(DIST) lorax lorax-$(VERSION)-$(FEDORA_REL).$(DIST).src.rpm lorax-$(VERSION).tar.gz
