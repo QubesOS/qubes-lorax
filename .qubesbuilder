@@ -4,5 +4,5 @@ host:
     - lorax.spec
 source:
   files:
-  - url: https://ftp.qubes-os.org/distfiles/lorax-32.9.tar.gz
-    sha512: lorax-32.9.tar.gz.sha512
+  - url: https://ftp.qubes-os.org/distfiles/lorax-37.8.tar.gz
+    sha512: lorax-37.8.tar.gz.sha512

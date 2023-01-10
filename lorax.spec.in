@@ -21,11 +21,12 @@ Patch2: 0003-Update-package-verification-for-dnf-API.patch
 Patch3: 0004-pylorax-remove-check-on-hfsplus-tools.patch
 
 BuildRequires:  python3-devel
+BuildRequires:  python3-setuptools
 BuildRequires:  make
+BuildRequires:  systemd-rpm-macros
 
 Requires:       lorax-templates
 
-Requires:       GConf2
 Requires:       cpio
 Requires:       device-mapper
 Requires:       dosfstools
@@ -46,8 +47,9 @@ Requires:       xz-lzma-compat
 Requires:       xz
 Requires:       pigz
 Requires:       pbzip2
-Requires:       dracut >= 050
+Requires:       dracut >= 030
 Requires:       kpartx
+Requires:       psmisc
 
 # Python modules
 Requires:       libselinux-python3
@@ -55,7 +57,7 @@ Requires:       python3-mako
 Requires:       python3-kickstart >= 3.19
 Requires:       python3-dnf >= 3.2.0
 Requires:       python3-librepo
-Requires:       python3-pycdlib
+Requires:       python3-pycdio
 
 %if 0%{?fedora}
 # Fedora specific deps
@@ -64,18 +66,14 @@ Requires:       hfsplus-tools
 %endif
 %endif
 
-%ifarch %{ix86} x86_64
-Requires:       syslinux >= 6.03-1
-Requires:       syslinux-nonlinux >= 6.03-1
-%endif
-
-%ifarch ppc64le
+%ifarch x86_64 ppc64le
 Requires:       grub2
 Requires:       grub2-tools
 %endif
 
 %ifarch s390 s390x
 Requires:       openssh
+Requires:       s390utils >= 2.15.0-2
 %endif
 
 %ifarch %{arm}
@@ -98,8 +96,7 @@ Summary: Lorax html documentation
 Requires: lorax = %{epoch}:%{version}-%{release}
 
 %description docs
-Includes the full html documentation for lorax, livemedia-creator, lorax-composer and the
-pylorax library.
+Includes the full html documentation for lorax, livemedia-creator, and the pylorax library.
 
 %package lmc-virt
 Summary:  livemedia-creator libvirt dependencies
@@ -120,7 +117,9 @@ Summary:  livemedia-creator no-virt dependencies
 Requires: lorax = %{epoch}:%{version}-%{release}
 Requires: anaconda-core
 Requires: anaconda-tui
+Requires: anaconda-install-env-deps
 Requires: system-logos
+Requires: python3-psutil
 
 %description lmc-novirt
 Additional dependencies required by livemedia-creator when using it with --no-virt
@@ -135,50 +134,6 @@ Provides: lorax-templates = %{version}-%{release}
 Lorax templates for creating the boot.iso and live isos are placed in
 /usr/share/lorax/templates.d/99-generic
 
-%package composer
-Summary: Lorax Image Composer API Server
-# For Sphinx documentation build
-BuildRequires: python3-flask python3-gobject libgit2-glib python3-toml python3-semantic_version
-
-Requires: lorax = %{epoch}:%{version}-%{release}
-Requires(pre): /usr/bin/getent
-Requires(pre): /usr/sbin/groupadd
-Requires(pre): /usr/sbin/useradd
-
-Requires: python3-toml
-Requires: python3-semantic_version
-Requires: libgit2
-Requires: libgit2-glib
-Requires: python3-flask
-Requires: python3-gevent
-Requires: anaconda-tui >= 29.19-1
-Requires: qemu-img
-Requires: tar
-Requires: python3-rpmfluff
-Requires: git
-Requires: xz
-Requires: createrepo_c
-
-%{?systemd_requires}
-BuildRequires: systemd
-
-# Implements the weldr API
-Provides: weldr
-
-%description composer
-lorax-composer provides a REST API for building images using lorax.
-
-%package -n composer-cli
-Summary: A command line tool for use with the lorax-composer API server
-
-# From Distribution
-Requires: python3-urllib3
-Requires: python3-toml
-
-%description -n composer-cli
-A command line tool for use with the lorax-composer API server. Examine blueprints,
-build images, etc. from the command line.
-
 %prep
 %autosetup -p1
 
@@ -188,50 +143,26 @@ build images, etc. from the command line.
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT mandir=%{_mandir} install
 
-# Install example blueprints from the test suite.
-# This path MUST match the lorax-composer.service blueprint path.
-mkdir -p $RPM_BUILD_ROOT/var/lib/lorax/composer/blueprints/
-for bp in example-http-server.toml example-development.toml example-atlas.toml; do
-    cp ./tests/pylorax/blueprints/$bp $RPM_BUILD_ROOT/var/lib/lorax/composer/blueprints/
-done
-
-%pre composer
-getent group weldr >/dev/null 2>&1 || groupadd -r weldr >/dev/null 2>&1 || :
-getent passwd weldr >/dev/null 2>&1 || useradd -r -g weldr -d / -s /sbin/nologin -c "User for lorax-composer" weldr >/dev/null 2>&1 || :
-
-%post composer
-%systemd_post lorax-composer.service
-%systemd_post lorax-composer.socket
-
-%preun composer
-%systemd_preun lorax-composer.service
-%systemd_preun lorax-composer.socket
-
-%postun composer
-%systemd_postun_with_restart lorax-composer.service
-%systemd_postun_with_restart lorax-composer.socket
-
 %files
 %defattr(-,root,root,-)
 %license COPYING
 %doc AUTHORS
-%doc docs/composer-cli.rst docs/lorax.rst docs/livemedia-creator.rst docs/product-images.rst
-%doc docs/lorax-composer.rst
+%doc docs/lorax.rst docs/livemedia-creator.rst docs/product-images.rst
 %doc docs/*ks
 %{python3_sitelib}/pylorax
 %{python3_sitelib}/*.egg-info
 %{_sbindir}/lorax
 %{_sbindir}/mkefiboot
 %{_sbindir}/livemedia-creator
-%{_sbindir}/mkksiso
+%{_bindir}/mkksiso
 %{_bindir}/image-minimizer
-%{_bindir}/mk-s390-cdboot
 %dir %{_sysconfdir}/lorax
 %config(noreplace) %{_sysconfdir}/lorax/lorax.conf
 %dir %{_datadir}/lorax
 %{_mandir}/man1/lorax.1*
 %{_mandir}/man1/livemedia-creator.1*
 %{_mandir}/man1/mkksiso.1*
+%{_mandir}/man1/image-minimizer.1*
 %{_tmpfilesdir}/lorax.conf
 
 %files docs
@@ -244,28 +175,6 @@ getent passwd weldr >/dev/null 2>&1 || useradd -r -g weldr -d / -s /sbin/nologin
 %files templates-generic
 %dir %{_datadir}/lorax/templates.d
 %{_datadir}/lorax/templates.d/*
-
-%files composer
-%config(noreplace) %{_sysconfdir}/lorax/composer.conf
-%{python3_sitelib}/pylorax/api/*
-%{python3_sitelib}/lifted/*
-%{_sbindir}/lorax-composer
-%{_unitdir}/lorax-composer.service
-%{_unitdir}/lorax-composer.socket
-%dir %{_datadir}/lorax/composer
-%{_datadir}/lorax/composer/*
-%{_datadir}/lorax/lifted/*
-%{_tmpfilesdir}/lorax-composer.conf
-%dir %attr(0771, root, weldr) %{_sharedstatedir}/lorax/composer/
-%dir %attr(0771, root, weldr) %{_sharedstatedir}/lorax/composer/blueprints/
-%attr(0771, weldr, weldr) %{_sharedstatedir}/lorax/composer/blueprints/*
-%{_mandir}/man1/lorax-composer.1*
-
-%files -n composer-cli
-%{_bindir}/composer-cli
-%{python3_sitelib}/composer/*
-%{_sysconfdir}/bash_completion.d/composer-cli
-%{_mandir}/man1/composer-cli.1*
 
 %changelog
 @CHANGELOG@
